@@ -8,9 +8,7 @@ import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.lang.model.element.Modifier.STATIC;
 
 import com.google.common.base.Throwables;
-import com.google.gwt.user.client.rpc.AsyncCallback;
-import com.intendia.gwt.autorpc.async.AutoRpcGwt;
-import com.intendia.gwt.autorpc.rx.SingleSubscriberAdapter;
+import com.google.common.collect.ImmutableSet;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
@@ -19,13 +17,16 @@ import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import com.squareup.javapoet.TypeVariableName;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.SourceVersion;
+import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
@@ -34,23 +35,21 @@ import javax.lang.model.element.TypeParameterElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeVariable;
 import javax.tools.Diagnostic.Kind;
-import rx.Single;
-import rx.SingleSubscriber;
 
 public class AutoRpcGwtProcessor extends AbstractProcessor {
-    private static final ClassName AsyncCallback = ClassName.get(AsyncCallback.class);
-    private static final ClassName Single = ClassName.get(rx.Single.class);
+    private final Set<Element> processed = new HashSet<>();
 
     @Override public Set<String> getSupportedOptions() { return singleton("debug"); }
 
-    @Override public Set<String> getSupportedAnnotationTypes() { return singleton(AutoRpcGwt.class.getName()); }
+    @Override public Set<String> getSupportedAnnotationTypes() { return SUPPORTED_ANNOTATIONS; }
 
     @Override public SourceVersion getSupportedSourceVersion() { return SourceVersion.latestSupported(); }
 
     @Override public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
         if (roundEnv.processingOver()) return false;
-        roundEnv.getElementsAnnotatedWith(AutoRpcGwt.class).stream()
+        annotations.stream().flatMap(a -> roundEnv.getElementsAnnotatedWith(a).stream())
                 .filter(e -> e.getKind().isInterface() && e instanceof TypeElement).map(e -> (TypeElement) e)
+                .filter(processed::add) // just in case some one add both annotations to the same interface
                 .forEach(rpcService -> {
                     try {
                         processRestService(rpcService);
@@ -76,14 +75,16 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
         TypeSpec.Builder asyncTypeBuilder = TypeSpec.interfaceBuilder(asyncName.simpleName())
                 .addOriginatingElement(rpcService).addModifiers(Modifier.PUBLIC);
 
-        TypeSpec.Builder rxTypeBuilder = TypeSpec.classBuilder(rxName.simpleName())
-                .addOriginatingElement(rpcService).addModifiers(Modifier.PUBLIC);
+        boolean rx = rxInClasspath();
+        TypeSpec.Builder rxTypeBuilder = rx ? TypeSpec.classBuilder(rxName.simpleName())
+                .addOriginatingElement(rpcService).addModifiers(Modifier.PUBLIC) : null;
 
-        final String asyncField = "async";
-        rxTypeBuilder.addField(asyncName, asyncField, PRIVATE, FINAL);
-        rxTypeBuilder.addMethod(MethodSpec.constructorBuilder()
-                .addModifiers(PUBLIC).addParameter(asyncName, asyncField)
-                .addStatement("this.async = async").build());
+        if (rx) {
+            rxTypeBuilder.addField(asyncName, ASYNC_FIELD, PRIVATE, FINAL);
+            rxTypeBuilder.addMethod(MethodSpec.constructorBuilder()
+                    .addModifiers(PUBLIC).addParameter(asyncName, ASYNC_FIELD)
+                    .addStatement("this.async = async").build());
+        }
 
         List<ExecutableElement> methods = rpcService.getEnclosedElements().stream()
                 .filter(e -> e.getKind() == ElementKind.METHOD && e instanceof ExecutableElement)
@@ -100,6 +101,7 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
             // to async method
             MethodSpec.Builder asyncMethod = MethodSpec.methodBuilder(methodName)
                     .addModifiers(PUBLIC, ABSTRACT).returns(TypeName.VOID);
+            getDoc(method).ifPresent(asyncMethod::addJavadoc);
             for (TypeParameterElement typeParameterElement : method.getTypeParameters()) {
                 asyncMethod.addTypeVariable(TypeVariableName.get((TypeVariable) typeParameterElement.asType()));
             }
@@ -114,10 +116,11 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
                     .build());
             asyncTypeBuilder.addMethod(asyncMethod.build());
 
-            // to rx method
-            MethodSpec.Builder rxBuilder = MethodSpec.methodBuilder(methodName).addModifiers(PUBLIC);
+            if (!rx) continue; // to rx method
+            MethodSpec.Builder rxMethod = MethodSpec.methodBuilder(methodName).addModifiers(PUBLIC);
+            getDoc(method).ifPresent(rxMethod::addJavadoc);
             for (TypeParameterElement typeParameterElement : method.getTypeParameters()) {
-                rxBuilder.addTypeVariable(TypeVariableName.get((TypeVariable) typeParameterElement.asType()));
+                rxMethod.addTypeVariable(TypeVariableName.get((TypeVariable) typeParameterElement.asType()));
             }
             // parameters
             String params = "";
@@ -125,24 +128,42 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
                 TypeName type = TypeName.get(parameter.asType());
                 String name = parameter.getSimpleName().toString();
                 params += name + ", ";
-                rxBuilder.addParameter(ParameterSpec.builder(type, name).addModifiers(FINAL).build());
+                rxMethod.addParameter(ParameterSpec.builder(type, name).addModifiers(FINAL).build());
             }
-            rxBuilder.addCode("return $T.create(new $T<$T>() {\n"
+            rxMethod.addCode("return $T.create(new $T<$T>() {\n"
                             + "  @Override public void call($T<? super $T> s) {\n"
-                            + "    $L.$L($Lnew $T<>(s));\n"
+                            + "    $L.$L($Lnew $T<$T>() {\n"
+                            + "      @Override public void onFailure($T caught) { s.onError(caught); }\n"
+                            + "      @Override public void onSuccess($T result) { s.onSuccess(result); }\n"
+                            + "    });\n"
                             + "  }\n"
-                            + "});\n", Single, Single.OnSubscribe.class, returnType, SingleSubscriber.class, returnType,
-                    asyncField, methodName, params, SingleSubscriberAdapter.class);
-            rxBuilder.returns(ParameterizedTypeName.get(Single, returnType));
-            rxTypeBuilder.addMethod(rxBuilder.build());
+                            + "});\n", Single, OnSubscribe, returnType, SingleSubscriber, returnType,
+                    ASYNC_FIELD, methodName, params, AsyncCallback, returnType, Throwable.class, returnType);
+            rxMethod.returns(ParameterizedTypeName.get(Single, returnType));
+            rxTypeBuilder.addMethod(rxMethod.build());
         }
 
         Filer filer = processingEnv.getFiler();
         boolean skipJavaLangImports = processingEnv.getOptions().containsKey("skipJavaLangImports");
         JavaFile.builder(rpcName.packageName(), asyncTypeBuilder.build())
                 .skipJavaLangImports(skipJavaLangImports).build().writeTo(filer);
-        JavaFile.builder(rpcName.packageName(), rxTypeBuilder.build())
+        if (rx) JavaFile.builder(rpcName.packageName(), rxTypeBuilder.build())
                 .skipJavaLangImports(skipJavaLangImports).build().writeTo(filer);
+    }
+
+    private Optional<String> getDoc(ExecutableElement method) {
+        String docComment = processingEnv.getElementUtils().getDocComment(method);
+        if (docComment == null || docComment.trim().isEmpty()) return Optional.empty();
+        if (!docComment.endsWith("\n")) docComment += "\n";
+        return Optional.of(docComment);
+    }
+
+    private boolean rxInClasspath() {
+        try {
+            return getClass().getClassLoader().loadClass("rx.Single") != null;
+        } catch (ClassNotFoundException notFound) {
+            return false;
+        }
     }
 
     private void log(String msg) {
@@ -154,4 +175,14 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
     private void error(String msg) {
         processingEnv.getMessager().printMessage(Kind.ERROR, msg);
     }
+
+    private static final String ASYNC_FIELD = "async";
+    private static final String GWT_RPC = "com.google.gwt.user.client.rpc";
+    private static final String AutoRpcGwt = "com.intendia.gwt.autorpc.async.AutoRpcGwt";
+    private static final String RemoteServiceRelativePath = GWT_RPC + ".RemoteServiceRelativePath";
+    private static final ClassName AsyncCallback = ClassName.get(GWT_RPC, "AsyncCallback");
+    private static final ClassName Single = ClassName.get("rx", "Single");
+    private static final ClassName OnSubscribe = Single.nestedClass("OnSubscribe");
+    private static final ClassName SingleSubscriber = ClassName.get("rx", "SingleSubscriber");
+    private static final Set<String> SUPPORTED_ANNOTATIONS = ImmutableSet.of(RemoteServiceRelativePath, AutoRpcGwt);
 }

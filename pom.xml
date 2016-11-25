@@ -10,7 +10,7 @@
 
     <groupId>com.intendia.gwt.autorpc</groupId>
     <artifactId>autorpc-parent</artifactId>
-    <version>0.6-SNAPSHOT</version>
+    <version>HEAD-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>AutoRpc</name>
@@ -81,17 +81,12 @@
             <dependency>
                 <groupId>com.google.code.findbugs</groupId>
                 <artifactId>jsr305</artifactId>
-                <version>3.0.0</version>
+                <version>3.0.1</version>
             </dependency>
             <dependency>
                 <groupId>junit</groupId>
                 <artifactId>junit</artifactId>
                 <version>4.12</version>
-            </dependency>
-            <dependency>
-                <groupId>org.mockito</groupId>
-                <artifactId>mockito-core</artifactId>
-                <version>2.0.52-beta</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
