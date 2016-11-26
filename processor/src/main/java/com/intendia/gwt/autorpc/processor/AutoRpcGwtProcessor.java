@@ -9,6 +9,7 @@ import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.lang.model.element.Modifier.STATIC;
 
+import com.squareup.javapoet.AnnotationSpec;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
@@ -17,11 +18,13 @@ import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import com.squareup.javapoet.TypeVariableName;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.annotation.Generated;
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.RoundEnvironment;
@@ -74,19 +77,19 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
         ClassName rxName = ClassName.get(rpcName.packageName(), rpcName.simpleName() + "Rx");
         log("Rx service model: " + asyncName);
 
+        AnnotationSpec generated = AnnotationSpec.builder(Generated.class)
+                .addMember("value", "$S", getClass().getName()).build();
+
         TypeSpec.Builder asyncTypeBuilder = TypeSpec.interfaceBuilder(asyncName.simpleName())
-                .addOriginatingElement(rpcService).addModifiers(Modifier.PUBLIC);
+                .addOriginatingElement(rpcService).addModifiers(Modifier.PUBLIC).addAnnotation(generated);
 
         boolean rx = rxInClasspath();
-        TypeSpec.Builder rxTypeBuilder = rx ? TypeSpec.classBuilder(rxName.simpleName())
-                .addOriginatingElement(rpcService).addModifiers(Modifier.PUBLIC) : null;
-
-        if (rx) {
-            rxTypeBuilder.addField(asyncName, ASYNC_FIELD, PRIVATE, FINAL);
-            rxTypeBuilder.addMethod(MethodSpec.constructorBuilder()
-                    .addModifiers(PUBLIC).addParameter(asyncName, ASYNC_FIELD)
-                    .addStatement("this.async = async").build());
-        }
+        TypeSpec.Builder rxTypeBuilder = !rx ? null : TypeSpec.classBuilder(rxName.simpleName())
+                .addOriginatingElement(rpcService).addModifiers(Modifier.PUBLIC).addAnnotation(generated)
+                .addField(asyncName, ASYNC_FIELD, PRIVATE, FINAL)
+                .addMethod(MethodSpec.constructorBuilder()
+                        .addModifiers(PUBLIC).addParameter(asyncName, ASYNC_FIELD)
+                        .addStatement("this.async = async").build());
 
         List<ExecutableElement> methods = rpcService.getEnclosedElements().stream()
                 .filter(e -> e.getKind() == ElementKind.METHOD && e instanceof ExecutableElement)
@@ -98,9 +101,7 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
             String methodName = method.getSimpleName().toString();
             TypeName returnTypeName = TypeName.get(method.getReturnType());
 
-            // from GreetingResponse greetServer(String name) throws IllegalArgumentException;
-
-            // to async method
+            // Async method
             MethodSpec.Builder asyncMethod = MethodSpec.methodBuilder(methodName)
                     .addModifiers(PUBLIC, ABSTRACT).returns(TypeName.VOID);
             getDoc(method).ifPresent(asyncMethod::addJavadoc);
@@ -118,14 +119,13 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
                     .build());
             asyncTypeBuilder.addMethod(asyncMethod.build());
 
-            if (!rx) continue; // to rx method
+            if (!rx) continue; // Rx method
             MethodSpec.Builder rxMethod = MethodSpec.methodBuilder(methodName).addModifiers(PUBLIC);
             getDoc(method).ifPresent(rxMethod::addJavadoc);
             for (TypeParameterElement typeParameterElement : method.getTypeParameters()) {
                 rxMethod.addTypeVariable(TypeVariableName.get((TypeVariable) typeParameterElement.asType()));
             }
-            // parameters
-            String params = "";
+            String params = ""; // accumulate params name to use in the async call
             for (VariableElement parameter : method.getParameters()) {
                 TypeName type = TypeName.get(parameter.asType());
                 String name = parameter.getSimpleName().toString();

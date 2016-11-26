@@ -30,8 +30,8 @@ public class ExampleEntryPoint implements EntryPoint {
 
         GreetingServiceAsync async = GWT.create(GreetingService.class);
         GreetingServiceRx rx = new GreetingServiceRx(async);
-
-        Observable.merge(valueChange(name), keyUp(name)).map(e -> name.getValue())
+        Observable.merge(valueChange(name), keyUp(name))
+                .map(e -> name.getValue())
                 .switchMap(q -> rx.post(new Greeting(q))
                         .map(Greeting::getGreeting)
                         .onErrorReturn(Throwable::toString)
