@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.intendia.gwt.autorpc</groupId>
         <artifactId>autorpc-gwt-parent</artifactId>
-        <version>0.1</version>
+        <version>HEAD-SNAPSHOT</version>
     </parent>
     <artifactId>autorpc-gwt-annotations</artifactId>
     <name>AutoRPC GWT :: Annotations</name>
