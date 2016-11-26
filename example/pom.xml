@@ -3,12 +3,12 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.intendia.gwt.autorpc</groupId>
-        <artifactId>autorpc-parent</artifactId>
+        <artifactId>autorpc-gwt-parent</artifactId>
         <version>HEAD-SNAPSHOT</version>
     </parent>
     <artifactId>autorpc-gwt-example</artifactId>
     <packaging>gwt-app</packaging>
-    <name>AutoRpc :: Example</name>
+    <name>AutoRPC GWT :: Example</name>
 
     <dependencyManagement>
         <dependencies>
@@ -25,12 +25,12 @@
     <dependencies>
         <dependency>
             <groupId>com.intendia.gwt.autorpc</groupId>
-            <artifactId>autorpc-core</artifactId>
+            <artifactId>autorpc-gwt-annotations</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>com.intendia.gwt.autorpc</groupId>
-            <artifactId>autorpc-processor</artifactId>
+            <artifactId>autorpc-gwt-processor</artifactId>
             <version>${project.version}</version>
             <scope>provided</scope>
             <optional>true</optional>
@@ -38,7 +38,6 @@
         <dependency>
             <groupId>com.intendia.gwt</groupId>
             <artifactId>rxjava-gwt</artifactId>
-            <version>1.0.14-beta1</version>
         </dependency>
         <dependency>
             <groupId>com.google.gwt</groupId>

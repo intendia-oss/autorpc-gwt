@@ -1,15 +1,14 @@
 package com.intendia.gwt.autorpc.processor;
 
 import static java.util.Collections.singleton;
+import static java.util.stream.Collectors.toSet;
+import static java.util.stream.Stream.of;
 import static javax.lang.model.element.Modifier.ABSTRACT;
 import static javax.lang.model.element.Modifier.FINAL;
 import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.lang.model.element.Modifier.STATIC;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Throwables;
-import com.google.common.collect.ImmutableSet;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
@@ -38,7 +37,7 @@ import javax.lang.model.type.TypeVariable;
 import javax.tools.Diagnostic.Kind;
 
 public class AutoRpcGwtProcessor extends AbstractProcessor {
-    @VisibleForTesting final Set<Element> processed = new HashSet<>();
+    /* @VisibleForTesting */ final Set<Element> processed = new HashSet<>();
 
     @Override public Set<String> getSupportedOptions() { return singleton("debug"); }
 
@@ -58,9 +57,8 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
                     try {
                         process(rpcService);
                     } catch (Exception e) {
-                        // We don't allow exceptions of any kind to propagate to the compiler
-                        error("uncaught exception processing RPC service " + rpcService + ": " + e + "\n"
-                                + Throwables.getStackTraceAsString(e));
+                        if (e instanceof RuntimeException) throw (RuntimeException) e;
+                        else throw new RuntimeException("error processing RPC service " + rpcService + ": " + e, e);
                     }
                 });
         return true;
@@ -176,17 +174,13 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
         }
     }
 
-    private void error(String msg) {
-        processingEnv.getMessager().printMessage(Kind.ERROR, msg);
-    }
-
     private static final String ASYNC_FIELD = "async";
     private static final String GWT_RPC = "com.google.gwt.user.client.rpc";
-    private static final String AutoRpcGwt = "com.intendia.gwt.autorpc.async.AutoRpcGwt";
+    private static final String AutoRpcGwt = "com.intendia.gwt.autorpc.annotations.AutoRpcGwt";
     private static final String RemoteServiceRelativePath = GWT_RPC + ".RemoteServiceRelativePath";
     private static final ClassName AsyncCallback = ClassName.get(GWT_RPC, "AsyncCallback");
     private static final ClassName Single = ClassName.get("rx", "Single");
     private static final ClassName OnSubscribe = Single.nestedClass("OnSubscribe");
     private static final ClassName SingleSubscriber = ClassName.get("rx", "SingleSubscriber");
-    private static final Set<String> SUPPORTED_ANNOTATIONS = ImmutableSet.of(RemoteServiceRelativePath, AutoRpcGwt);
+    private static final Set<String> SUPPORTED_ANNOTATIONS = of(RemoteServiceRelativePath, AutoRpcGwt).collect(toSet());
 }
