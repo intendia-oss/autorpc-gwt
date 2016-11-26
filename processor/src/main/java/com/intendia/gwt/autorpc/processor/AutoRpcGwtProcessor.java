@@ -7,6 +7,7 @@ import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.lang.model.element.Modifier.STATIC;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
 import com.squareup.javapoet.ClassName;
@@ -37,7 +38,7 @@ import javax.lang.model.type.TypeVariable;
 import javax.tools.Diagnostic.Kind;
 
 public class AutoRpcGwtProcessor extends AbstractProcessor {
-    private final Set<Element> processed = new HashSet<>();
+    @VisibleForTesting final Set<Element> processed = new HashSet<>();
 
     @Override public Set<String> getSupportedOptions() { return singleton("debug"); }
 
@@ -49,10 +50,13 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
         if (roundEnv.processingOver()) return false;
         annotations.stream().flatMap(a -> roundEnv.getElementsAnnotatedWith(a).stream())
                 .filter(e -> e.getKind().isInterface() && e instanceof TypeElement).map(e -> (TypeElement) e)
+                .filter(t -> t.getAnnotationMirrors().stream()
+                        .map(a -> a.getAnnotationType().asElement().getSimpleName().toString())
+                        .noneMatch("SkipRpcGwt"::equals))
                 .filter(processed::add) // just in case some one add both annotations to the same interface
                 .forEach(rpcService -> {
                     try {
-                        processRestService(rpcService);
+                        process(rpcService);
                     } catch (Exception e) {
                         // We don't allow exceptions of any kind to propagate to the compiler
                         error("uncaught exception processing RPC service " + rpcService + ": " + e + "\n"
@@ -62,7 +66,7 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
         return true;
     }
 
-    private void processRestService(TypeElement rpcService) throws Exception {
+    private void process(TypeElement rpcService) throws Exception {
         ClassName rpcName = ClassName.get(rpcService);
         log("RPC service interface: " + rpcName);
 

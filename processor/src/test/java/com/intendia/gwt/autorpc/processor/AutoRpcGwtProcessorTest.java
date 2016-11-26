@@ -1,6 +1,7 @@
 package com.intendia.gwt.autorpc.processor;
 
 import static com.google.common.truth.Truth.assertAbout;
+import static com.google.common.truth.Truth.assertThat;
 import static com.google.testing.compile.JavaFileObjects.forSourceString;
 import static com.google.testing.compile.JavaSourceSubjectFactory.javaSource;
 
@@ -9,21 +10,21 @@ import org.junit.Test;
 public class AutoRpcGwtProcessorTest {
 
     @Test public void assert_processor_works() {
-        assertAbout(javaSource())
-                .that(forSourceString("shared.GreetingService", "package shared;\n"
-                        + "\n"
-                        + "import com.google.gwt.user.client.rpc.RemoteService;\n"
-                        + "import com.google.gwt.user.client.rpc.RemoteServiceRelativePath;\n"
-                        + "import com.intendia.gwt.autorpc.async.AutoRpcGwt;\n"
-                        + "\n"
-                        + "@AutoRpcGwt @RemoteServiceRelativePath(\"greet\")\n"
-                        + "public interface GreetingService extends RemoteService {\n"
-                        + "    String greet(String name) throws IllegalArgumentException;\n"
-                        + "    int time();\n"
-                        + "    void noOp();\n"
-                        + "}"))
+        AutoRpcGwtProcessor processor = new AutoRpcGwtProcessor();
+        assertAbout(javaSource()).that(forSourceString("shared.GreetingService", "package shared;\n"
+                + "\n"
+                + "import com.google.gwt.user.client.rpc.RemoteService;\n"
+                + "import com.google.gwt.user.client.rpc.RemoteServiceRelativePath;\n"
+                + "import com.intendia.gwt.autorpc.async.AutoRpcGwt;\n"
+                + "\n"
+                + "@AutoRpcGwt @RemoteServiceRelativePath(\"greet\")\n"
+                + "public interface GreetingService extends RemoteService {\n"
+                + "    String greet(String name) throws IllegalArgumentException;\n"
+                + "    int time();\n"
+                + "    void noOp();\n"
+                + "}"))
                 .withCompilerOptions("-AskipJavaLangImports")
-                .processedWith(new AutoRpcGwtProcessor())
+                .processedWith(processor)
                 .compilesWithoutError()
                 .and().generatesSources(forSourceString("shared.GreetingServiceAsync", "package shared;\n"
                 + "\n"
@@ -74,6 +75,22 @@ public class AutoRpcGwtProcessorTest {
                 + "        });\n"
                 + "    }\n"
                 + "}"));
+        assertThat(processor.processed).hasSize(1);
     }
 
+    @Test public void assert_skip_works() {
+        final AutoRpcGwtProcessor processor = new AutoRpcGwtProcessor();
+        assertAbout(javaSource()).that(forSourceString("shared.GreetingService", "package shared;\n"
+                + "\n"
+                + "import com.google.gwt.user.client.rpc.RemoteService;\n"
+                + "import com.google.gwt.user.client.rpc.RemoteServiceRelativePath;\n"
+                + "import com.intendia.gwt.autorpc.async.SkipRpcGwt;\n"
+                + "\n"
+                + "@SkipRpcGwt @RemoteServiceRelativePath(\"greet\")\n"
+                + "public interface GreetingService extends RemoteService {\n"
+                + "}"))
+                .processedWith(processor)
+                .compilesWithoutError();
+        assertThat(processor.processed).hasSize(0);
+    }
 }
