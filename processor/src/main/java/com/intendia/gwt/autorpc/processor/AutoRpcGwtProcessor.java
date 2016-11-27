@@ -18,7 +18,6 @@ import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import com.squareup.javapoet.TypeVariableName;
-import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -88,8 +87,8 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
                 .addOriginatingElement(rpcService).addModifiers(Modifier.PUBLIC).addAnnotation(generated)
                 .addField(asyncName, ASYNC_FIELD, PRIVATE, FINAL)
                 .addMethod(MethodSpec.constructorBuilder()
-                        .addModifiers(PUBLIC).addParameter(asyncName, ASYNC_FIELD)
-                        .addStatement("this.async = async").build());
+                        .addModifiers(PUBLIC).addParameter(asyncName, "async")
+                        .addStatement("this.$L = async", ASYNC_FIELD).build());
 
         List<ExecutableElement> methods = rpcService.getEnclosedElements().stream()
                 .filter(e -> e.getKind() == ElementKind.METHOD && e instanceof ExecutableElement)
@@ -103,7 +102,7 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
 
             // Async method
             MethodSpec.Builder asyncMethod = MethodSpec.methodBuilder(methodName)
-                    .addModifiers(PUBLIC, ABSTRACT).returns(TypeName.VOID);
+                    .addModifiers(PUBLIC, ABSTRACT).returns(Request);
             getDoc(method).ifPresent(asyncMethod::addJavadoc);
             for (TypeParameterElement typeParameterElement : method.getTypeParameters()) {
                 asyncMethod.addTypeVariable(TypeVariableName.get((TypeVariable) typeParameterElement.asType()));
@@ -133,14 +132,16 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
                 rxMethod.addParameter(ParameterSpec.builder(type, name).addModifiers(FINAL).build());
             }
             rxMethod.addCode("return $T.create(new $T<$T>() {\n"
-                            + "  @Override public void call($T<? super $T> s) {\n"
-                            + "    $L.$L($Lnew $T<$T>() {\n"
-                            + "      @Override public void onFailure($T caught) { s.onError(caught); }\n"
-                            + "      @Override public void onSuccess($T result) { s.onSuccess(result); }\n"
+                            + "  @Override public void call(final $T<? super $T> s$$) {\n"
+                            + "    final $T r$$ = $L.$L($Lnew $T<$T>() {\n"
+                            + "      @Override public void onFailure($T caught) { s$$.onError(caught); }\n"
+                            + "      @Override public void onSuccess($T result) { s$$.onSuccess(result); }\n"
                             + "    });\n"
+                            + "    s$$.add($T.create(new $T() { @Override public void call() { r$$.cancel(); } }));\n"
                             + "  }\n"
-                            + "});\n", Single, OnSubscribe, returnType, SingleSubscriber, returnType,
-                    ASYNC_FIELD, methodName, params, AsyncCallback, returnType, Throwable.class, returnType);
+                            + "});\n", Single, OnSubscribe, returnType, SingleSubscriber, returnType, Request,
+                    ASYNC_FIELD, methodName, params, AsyncCallback, returnType, Throwable.class, returnType,
+                    Subscriptions, Action0);
             rxMethod.returns(ParameterizedTypeName.get(Single, returnType));
             rxTypeBuilder.addMethod(rxMethod.build());
         }
@@ -174,13 +175,16 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
         }
     }
 
-    private static final String ASYNC_FIELD = "async";
+    private static final String ASYNC_FIELD = "async$";
     private static final String GWT_RPC = "com.google.gwt.user.client.rpc";
     private static final String AutoRpcGwt = "com.intendia.gwt.autorpc.annotations.AutoRpcGwt";
     private static final String RemoteServiceRelativePath = GWT_RPC + ".RemoteServiceRelativePath";
     private static final ClassName AsyncCallback = ClassName.get(GWT_RPC, "AsyncCallback");
+    private static final ClassName Request = ClassName.get("com.google.gwt.http.client", "Request");
     private static final ClassName Single = ClassName.get("rx", "Single");
     private static final ClassName OnSubscribe = Single.nestedClass("OnSubscribe");
     private static final ClassName SingleSubscriber = ClassName.get("rx", "SingleSubscriber");
+    private static final ClassName Subscriptions = ClassName.get("rx.subscriptions", "Subscriptions");
+    private static final ClassName Action0 = ClassName.get("rx.functions", "Action0");
     private static final Set<String> SUPPORTED_ANNOTATIONS = of(RemoteServiceRelativePath, AutoRpcGwt).collect(toSet());
 }

@@ -86,7 +86,9 @@
                 <configuration>
                     <moduleName>com.intendia.gwt.autorpc.example.Example</moduleName>
                     <skipModule>true</skipModule>
-                </configuration>
+                    <extra>${project.build.directory}/gwt/extra</extra><!-- @formatter:off -->
+                    <compilerArgs><arg>-gen</arg><arg>${project.build.directory}/gwt/gen</arg></compilerArgs>
+                </configuration><!-- @formatter:on -->
             </plugin>
             <plugin>
                 <!-- just here to make IntelliJ happy -->

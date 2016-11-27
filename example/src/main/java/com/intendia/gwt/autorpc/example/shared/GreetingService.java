@@ -21,6 +21,7 @@ public interface GreetingService extends RemoteService {
      *
      * @param x dividend
      * @param y divisor
+     * @return {@code x} divided by {@code b}
      */
     int divide(int x, int y);
 
