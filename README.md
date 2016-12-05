@@ -27,7 +27,26 @@ in the `autorpc-gwt-annotations` project (in this case, you should add this
 project as a dependency). However, if what you want is to skip the generation 
 of one of yours services, you can add the annotation `@SkipRpcGwt`. You can use 
 whatever annotation that matches this name or just add a dependency to 
-`autorpc-gwt-annotations` and use the provided one. 
+`autorpc-gwt-annotations` and use the provided one.
+
+Async interfaces returns always `Request`. GWT RPC support `void`, `Request` 
+and `RequestBuilder` as return types, but this libs has considered that there
+are no advantages of returning `void` instead of `Request`. And returning
+`Request` might be interesting in some situations like request cancellation 
+(automatically done by the Rx adapter if the observable is unsubscribed).
+`RequestBuilder` might be used in some cases to add some header, this return
+type is not supported to simplify implementation, but you can (and, IMO should)
+manipulate the `RequestBuilder` using a custom `RpcRequestBuilder` and 
+overriding `doCreate` or `doFinish` like in this example.
+```java
+GreetingServiceAsync async = GWT.create(GreetingService.class);
+((RemoteServiceProxy) async).setRpcRequestBuilder(new RpcRequestBuilder() {
+    @Override protected void doFinish(RequestBuilder rb) {
+        super.doFinish(rb);
+        rb.setHeader("X-Custom-Header", "Hi!");
+    }
+});
+```
 
 
  [dl]: https://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.intendia.gwt.autorpc%22

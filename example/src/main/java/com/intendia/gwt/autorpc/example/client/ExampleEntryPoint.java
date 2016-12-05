@@ -6,6 +6,9 @@ import com.google.gwt.event.dom.client.HasKeyUpHandlers;
 import com.google.gwt.event.dom.client.KeyUpEvent;
 import com.google.gwt.event.logical.shared.HasValueChangeHandlers;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
+import com.google.gwt.http.client.RequestBuilder;
+import com.google.gwt.user.client.rpc.RpcRequestBuilder;
+import com.google.gwt.user.client.rpc.impl.RemoteServiceProxy;
 import com.google.gwt.user.client.ui.HTML;
 import com.google.gwt.user.client.ui.IsWidget;
 import com.google.gwt.user.client.ui.Label;
@@ -29,6 +32,12 @@ public class ExampleEntryPoint implements EntryPoint {
         HTML out = append(new HTML());
 
         GreetingServiceAsync async = GWT.create(GreetingService.class);
+        ((RemoteServiceProxy) async).setRpcRequestBuilder(new RpcRequestBuilder() {
+            @Override protected void doFinish(RequestBuilder rb) {
+                super.doFinish(rb);
+                rb.setHeader("X-Custom-Header", "Hi!");
+            }
+        });
         GreetingServiceRx rx = new GreetingServiceRx(async);
         Observable.merge(valueChange(name), keyUp(name))
                 .map(e -> name.getValue())
