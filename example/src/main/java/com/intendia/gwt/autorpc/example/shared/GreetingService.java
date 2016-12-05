@@ -2,10 +2,9 @@ package com.intendia.gwt.autorpc.example.shared;
 
 import com.google.gwt.user.client.rpc.RemoteService;
 import com.google.gwt.user.client.rpc.RemoteServiceRelativePath;
-import com.intendia.gwt.autorpc.annotations.AutoRpcGwt;
 import java.util.ArrayList;
 
-@AutoRpcGwt @RemoteServiceRelativePath("greeting")
+@RemoteServiceRelativePath("greeting")
 public interface GreetingService extends RemoteService {
 
     void ping();

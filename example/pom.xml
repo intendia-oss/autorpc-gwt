@@ -25,11 +25,6 @@
     <dependencies>
         <dependency>
             <groupId>com.intendia.gwt.autorpc</groupId>
-            <artifactId>autorpc-gwt-annotations</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.intendia.gwt.autorpc</groupId>
             <artifactId>autorpc-gwt-processor</artifactId>
             <version>${project.version}</version>
             <scope>provided</scope>
