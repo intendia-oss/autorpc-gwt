@@ -8,6 +8,7 @@ import static javax.lang.model.element.Modifier.FINAL;
 import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.lang.model.element.Modifier.STATIC;
+import static javax.tools.StandardLocation.SOURCE_OUTPUT;
 
 import com.squareup.javapoet.AnnotationSpec;
 import com.squareup.javapoet.ClassName;
@@ -18,10 +19,18 @@ import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import com.squareup.javapoet.TypeVariableName;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import javax.annotation.Generated;
 import javax.annotation.processing.AbstractProcessor;
@@ -37,9 +46,11 @@ import javax.lang.model.element.TypeParameterElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeVariable;
 import javax.tools.Diagnostic.Kind;
+import javax.tools.FileObject;
 
 public class AutoRpcGwtProcessor extends AbstractProcessor {
     /* @VisibleForTesting */ final Set<Element> processed = new HashSet<>();
+    Set<String> all;
 
     @Override public Set<String> getSupportedOptions() { return singleton("debug"); }
 
@@ -48,7 +59,29 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
     @Override public SourceVersion getSupportedSourceVersion() { return SourceVersion.latestSupported(); }
 
     @Override public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
-        if (roundEnv.processingOver()) return false;
+        if (all == null) {
+            all = new TreeSet<>();
+            try {
+                FileObject resource = processingEnv.getFiler().getResource(SOURCE_OUTPUT, "", "META-INF/rpc.log");
+                new BufferedReader(new InputStreamReader(resource.openInputStream())).lines().forEach(all::add);
+            } catch (IOException notFound) {
+                log("rpx.log not found");
+            }
+        }
+
+        if (roundEnv.processingOver()) {
+            log("all " + all);
+            try {
+                FileObject resource = processingEnv.getFiler().createResource(SOURCE_OUTPUT, "", "META-INF/rpc.log");
+                PrintWriter out = new PrintWriter(new OutputStreamWriter(resource.openOutputStream()));
+                all.forEach(out::println);
+                out.close();
+            } catch (IOException ex) {
+                log("ups… error writing to rpx.log: " + ex);
+            }
+            return false;
+        }
+
         annotations.stream().flatMap(a -> roundEnv.getElementsAnnotatedWith(a).stream())
                 .filter(e -> e.getKind().isInterface() && e instanceof TypeElement).map(e -> (TypeElement) e)
                 .filter(t -> t.getAnnotationMirrors().stream()
@@ -56,6 +89,7 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
                         .noneMatch("SkipRpcGwt"::equals))
                 .filter(processed::add) // just in case some one add both annotations to the same interface
                 .forEach(rpcService -> {
+                    all.add(rpcService.getQualifiedName().toString());
                     try {
                         process(rpcService);
                     } catch (Exception e) {
