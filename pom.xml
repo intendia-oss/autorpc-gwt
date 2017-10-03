@@ -8,7 +8,7 @@
     </parent>
     <groupId>com.intendia.gwt.autorpc</groupId>
     <artifactId>autorpc-gwt-parent</artifactId>
-    <version>0.3</version>
+    <version>HEAD-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>AutoRPC GWT</name>
     <description>A source code generator for GWT RPC async interfaces and RxJava adapter types.</description>
@@ -33,7 +33,7 @@
         <connection>scm:git:https://github.com/intendia-oss/autorpc-gwt.git</connection>
         <developerConnection>scm:git:git@github.com:intendia-oss/autorpc-gwt.git</developerConnection>
         <url>https://github.com/intendia-oss/autorpc-gwt</url>
-        <tag>v0.3</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <issueManagement>
