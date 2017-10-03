@@ -1,7 +1,7 @@
 <!DOCTYPE module PUBLIC "-//Google Inc.//DTD Google Web Toolkit 2.7.0//EN" "http://gwtproject.org/doctype/2.7.0/gwt-module.dtd">
 <module rename-to="example">
     <inherits name="com.google.gwt.user.User"/>
-    <inherits name="rx.Rx"/>
+    <inherits name="io.reactivex.RxJava"/>
     <collapse-all-properties/>
     <servlet path="/greeting" class="com.intendia.gwt.autorpc.example.server.DefaultGreetingService"/>
     <entry-point class="com.intendia.gwt.autorpc.example.client.ExampleEntryPoint"/>

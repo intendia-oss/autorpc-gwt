@@ -32,7 +32,7 @@
         </dependency>
         <dependency>
             <groupId>com.intendia.gwt</groupId>
-            <artifactId>rxjava-gwt</artifactId>
+            <artifactId>rxjava2-gwt</artifactId>
         </dependency>
         <dependency>
             <groupId>com.google.gwt</groupId>

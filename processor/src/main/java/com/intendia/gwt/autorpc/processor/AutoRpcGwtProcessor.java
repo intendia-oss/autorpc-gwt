@@ -131,18 +131,33 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
                 params += name + ", ";
                 rxMethod.addParameter(ParameterSpec.builder(type, name).addModifiers(FINAL).build());
             }
-            rxMethod.addCode("return $T.create(new $T<$T>() {\n"
-                            + "  @Override public void call(final $T<? super $T> s$$) {\n"
-                            + "    final $T r$$ = $L.$L($Lnew $T<$T>() {\n"
-                            + "      @Override public void onFailure($T caught) { s$$.onError(caught); }\n"
-                            + "      @Override public void onSuccess($T result) { s$$.onSuccess(result); }\n"
-                            + "    });\n"
-                            + "    s$$.add($T.create(new $T() { @Override public void call() { r$$.cancel(); } }));\n"
-                            + "  }\n"
-                            + "});\n", Single, OnSubscribe, returnType, SingleSubscriber, returnType, Request,
-                    ASYNC_FIELD, methodName, params, AsyncCallback, returnType, Throwable.class, returnType,
-                    Subscriptions, Action0);
-            rxMethod.returns(ParameterizedTypeName.get(Single, returnType));
+            if (returnType.equals(TypeName.VOID.box())) {
+                rxMethod.addCode("return $T.create(new $T() {\n"
+                                + "  @Override public void subscribe(final $T s$$) throws Exception {\n"
+                                + "    final $T r$$ = $L.$L($Lnew $T<$T>() {\n"
+                                + "      @Override public void onFailure($T caught) { s$$.onError(caught); }\n"
+                                + "      @Override public void onSuccess($T result) { s$$.onComplete(); }\n"
+                                + "    });\n"
+                                + "    s$$.setCancellable(new $T() { @Override public void cancel() throws Exception { r$$.cancel(); } });\n"
+                                + "  }\n"
+                                + "});\n",
+                        Completable, CompletableOnSubscribe, CompletableEmitter, Request, ASYNC_FIELD, methodName,
+                        params, AsyncCallback, returnType, Throwable.class, returnType, Cancellable);
+                rxMethod.returns(Completable);
+            } else {
+                rxMethod.addCode("return $T.create(new $T<$T>() {\n"
+                                + "  @Override public void subscribe(final $T<$T> s$$) throws Exception {\n"
+                                + "    final $T r$$ = $L.$L($Lnew $T<$T>() {\n"
+                                + "      @Override public void onFailure($T caught) { s$$.onError(caught); }\n"
+                                + "      @Override public void onSuccess($T result) { s$$.onSuccess(result); }\n"
+                                + "    });\n"
+                                + "    s$$.setCancellable(new $T() { @Override public void cancel() throws Exception { r$$.cancel(); } });\n"
+                                + "  }\n"
+                                + "});\n",
+                        Single, SingleOnSubscribe, returnType, SingleEmitter, returnType, Request, ASYNC_FIELD,
+                        methodName, params, AsyncCallback, returnType, Throwable.class, returnType, Cancellable);
+                rxMethod.returns(ParameterizedTypeName.get(Single, returnType));
+            }
             rxTypeBuilder.addMethod(rxMethod.build());
         }
 
@@ -163,7 +178,7 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
 
     private boolean rxInClasspath() {
         try {
-            return getClass().getClassLoader().loadClass("rx.Single") != null;
+            return getClass().getClassLoader().loadClass("io.reactivex.Single") != null;
         } catch (ClassNotFoundException notFound) {
             return false;
         }
@@ -181,10 +196,12 @@ public class AutoRpcGwtProcessor extends AbstractProcessor {
     private static final String RemoteServiceRelativePath = GWT_RPC + ".RemoteServiceRelativePath";
     private static final ClassName AsyncCallback = ClassName.get(GWT_RPC, "AsyncCallback");
     private static final ClassName Request = ClassName.get("com.google.gwt.http.client", "Request");
-    private static final ClassName Single = ClassName.get("rx", "Single");
-    private static final ClassName OnSubscribe = Single.nestedClass("OnSubscribe");
-    private static final ClassName SingleSubscriber = ClassName.get("rx", "SingleSubscriber");
-    private static final ClassName Subscriptions = ClassName.get("rx.subscriptions", "Subscriptions");
-    private static final ClassName Action0 = ClassName.get("rx.functions", "Action0");
+    private static final ClassName Single = ClassName.get("io.reactivex", "Single");
+    private static final ClassName SingleOnSubscribe = ClassName.get("io.reactivex", "SingleOnSubscribe");
+    private static final ClassName SingleEmitter = ClassName.get("io.reactivex", "SingleEmitter");
+    private static final ClassName Completable = ClassName.get("io.reactivex", "Completable");
+    private static final ClassName CompletableOnSubscribe = ClassName.get("io.reactivex", "CompletableOnSubscribe");
+    private static final ClassName CompletableEmitter = ClassName.get("io.reactivex", "CompletableEmitter");
+    private static final ClassName Cancellable = ClassName.get("io.reactivex.functions", "Cancellable");
     private static final Set<String> SUPPORTED_ANNOTATIONS = of(RemoteServiceRelativePath, AutoRpcGwt).collect(toSet());
 }
